@@ -185,7 +185,7 @@ function GGrid:get_visual()
           local note_value = self.sequencer.matrix[i + step_offset][note_index]
           if note_value > 0 then
             local level = 12 - (self.sequencer.scale_full[note_index] % 12) + 2
-            self.visual[j][i] = note_value == 2 and math.max(2, util.round(level / 2)) or level
+            self.visual[j][i] = note_value == 2 and math.max(2, util.round(level / 3)) or level
           end
         end
       end

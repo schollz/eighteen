@@ -199,13 +199,6 @@ function GGrid:get_visual()
         self.visual[i][(self.sequencer.step - 1) % self.width + 1] = v
       end
 
-      -- show limit
-      local limit = self.sequencer:get_param("limit")
-      limit = limit > self.width and self.width or limit
-      for i = 1, self.height - 1 do
-        for j = 1, limit do if self.visual[i][j] == 0 then self.visual[i][j] = 1 end end
-      end
-
       -- show keyboard
       for col = 1, self.width - 1 do
         local note_index = self.sequencer:get_note_index(col)

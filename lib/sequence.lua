@@ -627,6 +627,46 @@ function Sequence:step_peek(step, movement)
   return step, movement
 end
 
+function Sequence:left_step(step)
+  local limit = self:get_param("limit")
+  return step == 1 and limit or step - 1
+end
+
+function Sequence:right_step(step)
+  local limit = self:get_param("limit")
+  return step == limit and 1 or step + 1
+end
+
+function Sequence:promote_right_tie(step, note_index)
+  local right_step = self:right_step(step)
+  if self.matrix[right_step][note_index] == 2 then self.matrix[right_step][note_index] = 1 end
+end
+
+function Sequence:clear_note(step, note_index)
+  self.matrix[step][note_index] = 0
+  self:promote_right_tie(step, note_index)
+end
+
+function Sequence:toggle_cell(step, note_index)
+  if self.matrix[step][note_index] == 0 then
+    self.matrix[step][note_index] = 1
+  elseif self.matrix[step][note_index] == 1 and self.matrix[self:left_step(step)][note_index] > 0 then
+    self.matrix[step][note_index] = 2
+  else
+    self:clear_note(step, note_index)
+  end
+end
+
+function Sequence:note_off(note_data)
+  local note = note_data[2]
+  if self:get_param("output") == 1 then
+    engine.mx_note_off(self.id, note)
+  elseif self:get_param("output") == 2 then
+    -- midi output
+    if self.midi_out_device then self.midi_out_device:note_off(note, 0, self:get_param("midi_out_channel")) end
+  end
+end
+
 function Sequence:update(division, beat)
   if division ~= self.divisions[self:get_param("division")] then do return end end
   -- if generating then remove a random note and replace with a new note
@@ -639,7 +679,7 @@ function Sequence:update(division, beat)
     if #steps > 0 then
       local random_step = steps[math.random(1, #steps)]
       print("removing note", random_step[1], random_step[2])
-      self.matrix[random_step[1]][random_step[2]] = 0
+      self:clear_note(random_step[1], random_step[2])
       local random_i = math.random(1, self.sequence_max)
       local random_j = math.random(1, self.note_max)
       self.matrix[random_i][random_j] = 1
@@ -664,27 +704,38 @@ function Sequence:update(division, beat)
   self.beat = beat and beat or self.last_beat + 1
   self.step_time_before_last = self.step_time_last
   self.step_time_last = clock.get_beats()
+  local step_previous = self.step_last
   self.step_last = self.step
   self.step, self.movement = self:step_peek(self.step, self.movement)
   -- self.step_next, _ = self:step_peek(self.step, self.movement)
   -- check which notes are activated
   local notes = {}
-  for i = 1, self.note_limit do if self.matrix[self.step_last][i] > 0 then table.insert(notes, i) end end
+  local notes_sustained = {}
+  local notes_on = {}
+  local can_tie = step_previous == self:left_step(self.step_last)
+  for _, note_data in ipairs(self.notes_on) do
+    if note_data[3] ~= nil then notes_on[note_data[3]] = note_data end
+  end
+  for i = 1, self.note_limit do
+    if self.matrix[self.step_last][i] == 1 then
+      table.insert(notes, i)
+    elseif self.matrix[self.step_last][i] == 2 and can_tie and notes_on[i] ~= nil and self:get_param("mute") == 0 then
+      notes_sustained[i] = true
+    end
+  end
 
   -- turn off prevoius notes
+  local notes_held = {}
   for _, note_data in ipairs(self.notes_on) do
-    local instrument = note_data[1]
-    local note = note_data[2]
-    if self:get_param("output") == 1 then
-      engine.mx_note_off(self.id, note)
-    elseif self:get_param("output") == 2 then
-      -- midi output
-      if self.midi_out_device then self.midi_out_device:note_off(note, 0, self:get_param("midi_out_channel")) end
+    if note_data[3] ~= nil and notes_sustained[note_data[3]] then
+      table.insert(notes_held, note_data)
+    else
+      self:note_off(note_data)
     end
   end
 
   -- emit those notes
-  self.notes_on = {}
+  self.notes_on = notes_held
   for i, note in pairs(notes) do self:note_on(note) end
 
   -- check if there are notes to ghost
@@ -692,7 +743,7 @@ function Sequence:update(division, beat)
     -- randomly choose 1 note to toggle off if it is on
     local note_to_ghost = self.notes_to_ghost[math.random(1, #self.notes_to_ghost)]
     if self.matrix[note_to_ghost[1]][note_to_ghost[2]] > 0 then
-      self.matrix[note_to_ghost[1]][note_to_ghost[2]] = 0
+      self:clear_note(note_to_ghost[1], note_to_ghost[2])
       -- remove it from the notes_to_ghost table
       for i, v in ipairs(self.notes_to_ghost) do
         if v[1] == note_to_ghost[1] and v[2] == note_to_ghost[2] then
@@ -708,7 +759,7 @@ function Sequence:note_on(note_index)
   if self:get_param("mute") == 1 then do return end end
   if self:get_param("probability") < math.random() then do return end end
   local note = self.scale_full[note_index]
-  table.insert(self.notes_on, {self.instrument, note})
+  table.insert(self.notes_on, {self.instrument, note, note_index})
   self.velocity_i = (self.beat - 1) % #self:get_velocity_profile() + 1
   if self.velocity_i > #self:get_velocity_profile() then self.velocity_i = 1 end
   local velocity
@@ -761,7 +812,7 @@ function Sequence:toggle_from_note(note)
     end
   end
   print(self.step, closest_index)
-  self.matrix[self.step][closest_index] = 1 - self.matrix[self.step][closest_index]
+  self:toggle_cell(self.step, closest_index)
   -- find the note offset that is closest to that index
   self.note_offset = math.floor((closest_index) / 7) * 7
   print(self.note_offset)
@@ -769,17 +820,13 @@ end
 
 function Sequence:toggle_pos(step, row)
   local note_index = (row + self.note_offset - 1) % self.note_limit + 1
-  self.matrix[step][note_index] = 1 - self.matrix[step][note_index]
+  self:toggle_cell(step, note_index)
 end
 
 function Sequence:toggle_note(note_index)
   local step = self.step
   local note_index = self:get_note_index(note_index)
-  if self.matrix[step][note_index] == 0 then
-    self.matrix[step][note_index] = 1
-  else
-    self.matrix[step][note_index] = 0
-  end
+  self:toggle_cell(step, note_index)
 end
 
 function Sequence:get_note_index(note_index)

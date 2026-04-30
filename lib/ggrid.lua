@@ -182,8 +182,10 @@ function GGrid:get_visual()
       for i = 1, self.width do
         for j = 1, self.height - 1 do
           local note_index = self.sequencer:get_note_index(self.height - j)
-          if self.sequencer.matrix[i + step_offset][note_index] > 0 then
-            self.visual[j][i] = 12 - (self.sequencer.scale_full[note_index] % 12) + 2
+          local note_value = self.sequencer.matrix[i + step_offset][note_index]
+          if note_value > 0 then
+            local level = 12 - (self.sequencer.scale_full[note_index] % 12) + 2
+            self.visual[j][i] = note_value == 2 and math.max(2, util.round(level / 2)) or level
           end
         end
       end

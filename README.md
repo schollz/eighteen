@@ -23,6 +23,8 @@ press and make quantized patterns of sequence across four tracks, using a grid o
 - K1 + K2: clear visible
 - K1 + K3: clear all
 
+pressing an active note next to another note will dim it and make it "tied".
+
 fun things: goto `TRACK X` and randomize with `randomize` parameter and have it evolve with `evolve` parameter.
 
 the supercollider engine uses `mx.samples` which you can optionally install:

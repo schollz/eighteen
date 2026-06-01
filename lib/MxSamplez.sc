@@ -39,14 +39,9 @@ MxSamplez {
 
 			// reverb
 			snd2 = In.ar(inReverb,2);
-			snd2 = DelayN.ar(snd2, 0.03, 0.03);
-			snd2 = CombN.ar(snd2, 0.1, {Rand(0.01,0.099)}!32, 4);
-			snd2 = SplayAz.ar(2, snd2);
-			snd2 = LPF.ar(snd2, 1500);
-			5.do{snd2 = AllpassN.ar(snd2, 0.1, {Rand(0.01,0.099)}!2, 3)};
-			snd2 = LPF.ar(snd2, 1500);
+			snd2 = FreeVerb2.ar(snd2[0], snd2[1], mix:1, room:0.8, damp:0.5);
 			snd2 = LeakDC.ar(snd2);
-			Out.ar(out,snd2);
+			Out.ar(out,snd2*reverb);
 		}).send(server);
 
 		busDelay = Bus.audio(server,2);

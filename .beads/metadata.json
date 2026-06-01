@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "pitter_patter",
+  "project_id": "500b23f7-0622-45b9-8ce4-f1e31f24af56"
+}

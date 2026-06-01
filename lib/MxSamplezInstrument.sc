@@ -59,7 +59,7 @@ MxSamplezInstrument {
 			"attack", 0.01,
 			"decay", 0.1,
 			"sustain", 1.0,
-			"release", 5.0,
+			"release", 2.0,
 			"fadetime", 1.0,
 			"delaysend",0.0,
 			"reverbsend",0.0,
@@ -484,7 +484,25 @@ MxSamplezInstrument {
 		arg note,amp,file1,file2,buf1mix,rate;
 		var notename=1000000.rand;
 		var node;
+		var totalVoices=0;
 		[notename,note,amp,file1,file2,buf1mix,rate].postln;
+
+		// enforce polyphony cap — voice steal oldest available voice
+		syn.keysValuesDo({ arg n, dict; totalVoices = totalVoices + dict.size; });
+		while ({ totalVoices >= maxSamples }, {
+			var stolen=false;
+			syn.keysValuesDo({ arg n, dict;
+				if (stolen.not && (dict.size > 0), {
+					var k=dict.keys.asArray.first;
+					dict.at(k).set(\gate, 0, \release, 0.05);
+					dict.removeAt(k);
+					stolen=true;
+					totalVoices=totalVoices-1;
+				});
+			});
+			if (stolen.not, { totalVoices=0 }); // safety exit if syn is empty
+		});
+
 		// check if sound is loaded and unload it
 		if (syn.at(note).isNil,{
 			syn.put(note,Dictionary.new());
@@ -509,7 +527,6 @@ MxSamplezInstrument {
 		});
 		syn.at(note).put(notename,node);
 		voicesOn.put(note,1);
-		NodeWatcher.register(node,true);
 	}
 
 

@@ -25,14 +25,15 @@ MxSamplezInstrument {
 	var pedalSustainNotes;
 	var pedalSostenutoNotes;
 	var voicesOn;
+	var sharedVoiceCount;
 
 	*new {
-		arg serverName,folderToSamples,numberMaxSamples,busOutArg,busDelayArg,busReverbArg;
-		^super.new.init(serverName,folderToSamples,numberMaxSamples,busOutArg,busDelayArg,busReverbArg);
+		arg serverName,folderToSamples,numberMaxSamples,busOutArg,busDelayArg,busReverbArg,sharedVoiceCountArg;
+		^super.new.init(serverName,folderToSamples,numberMaxSamples,busOutArg,busDelayArg,busReverbArg,sharedVoiceCountArg);
 	}
 
 	init {
-		arg serverName,folderToSamples,numberMaxSamples,busOutArg,busDelayArg,busReverbArg;
+		arg serverName,folderToSamples,numberMaxSamples,busOutArg,busDelayArg,busReverbArg,sharedVoiceCountArg;
 
 		server=serverName;
 		folder=folderToSamples;
@@ -41,6 +42,7 @@ MxSamplezInstrument {
 		busReverb=busReverbArg;
 		busOut=busOutArg;
 		busOutput=Bus.audio(server,2);
+		sharedVoiceCount=sharedVoiceCountArg ?? { [0] };
 
 		pedalSustainOn=false;
 		pedalSostenutoOn=false;
@@ -59,7 +61,7 @@ MxSamplezInstrument {
 			"attack", 0.01,
 			"decay", 0.1,
 			"sustain", 1.0,
-			"release", 5.0,
+			"release", 2.0,
 			"fadetime", 1.0,
 			"delaysend",0.0,
 			"reverbsend",0.0,
@@ -485,6 +487,22 @@ MxSamplezInstrument {
 		var notename=1000000.rand;
 		var node;
 		[notename,note,amp,file1,file2,buf1mix,rate].postln;
+
+		// enforce global polyphony cap — voice steal from this instrument if at limit
+		while ({ sharedVoiceCount[0] >= maxSamples }, {
+			var stolen=false;
+			syn.keysValuesDo({ arg n, dict;
+				if (stolen.not && (dict.size > 0), {
+					var k=dict.keys.asArray.first;
+					dict.at(k).set(\gate, 0, \release, 0.05);
+					dict.removeAt(k);
+					stolen=true;
+					sharedVoiceCount[0] = sharedVoiceCount[0] - 1;
+				});
+			});
+			if (stolen.not, { sharedVoiceCount[0] = 0 }); // safety exit
+		});
+
 		// check if sound is loaded and unload it
 		if (syn.at(note).isNil,{
 			syn.put(note,Dictionary.new());
@@ -506,10 +524,11 @@ MxSamplezInstrument {
 			\rate,rate,
 		]).onFree({
 			syn.at(note).removeAt(notename);
+			sharedVoiceCount[0] = sharedVoiceCount[0] - 1;
 		});
 		syn.at(note).put(notename,node);
 		voicesOn.put(note,1);
-		NodeWatcher.register(node,true);
+		sharedVoiceCount[0] = sharedVoiceCount[0] + 1;
 	}
 
 

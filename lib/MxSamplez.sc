@@ -10,6 +10,7 @@ MxSamplez {
 	var busReverb;
 	var busOut;
 	var garbageCollector;
+	var sharedVoiceCount;
 
 	*new {
 		arg serverName,numberMaxSamples,argBusOut;
@@ -22,6 +23,7 @@ MxSamplez {
 		server=serverName;
 		maxSamples=numberMaxSamples;
 		ins=Dictionary.new();
+		sharedVoiceCount=[0];
 
 		SynthDef("mxfx",{
 			arg inDelay, inReverb, reverb=0.05, out, secondsPerBeat=0.2,delayBeats=4,delayFeedback=0.1,bufnumDelay;
@@ -76,13 +78,13 @@ MxSamplez {
 		if (ins.at(id).notNil,{
 			ins.at(id).free;
 		});
-		ins.put(id,MxSamplezInstrument(server,folder,maxSamples,busOut,busDelay.index,busReverb.index));
+		ins.put(id,MxSamplezInstrument(server,folder,maxSamples,busOut,busDelay.index,busReverb.index,sharedVoiceCount));
 	}
 
 	setParam {
 		arg id,folder,key,value;
 		if (ins.at(id).isNil,{
-			ins.put(id,MxSamplezInstrument(server,folder,maxSamples,busOut,busDelay.index,busReverb.index));
+			ins.put(id,MxSamplezInstrument(server,folder,maxSamples,busOut,busDelay.index,busReverb.index,sharedVoiceCount));
 		});
 		ins.at(id).setParam(key,value);
 	}
@@ -96,7 +98,7 @@ MxSamplez {
 	noteOn {
 		arg id,folder,note,velocity;
 		if (ins.at(id).isNil,{
-			ins.put(id,MxSamplezInstrument(server,folder,maxSamples,busOut,busDelay.index,busReverb.index));
+			ins.put(id,MxSamplezInstrument(server,folder,maxSamples,busOut,busDelay.index,busReverb.index,sharedVoiceCount));
 		});
 		["note_on",id,note,velocity].postln;
 		ins.at(id).noteOn(note,velocity);
@@ -105,7 +107,7 @@ MxSamplez {
 	setSustain {
 		arg id, folder, on;
 		if (ins.at(id).isNil,{
-			ins.put(id,MxSamplezInstrument(server,folder,maxSamples,busOut,busDelay.index,busReverb.index));
+			ins.put(id,MxSamplezInstrument(server,folder,maxSamples,busOut,busDelay.index,busReverb.index,sharedVoiceCount));
 		});
 		ins.at(id).sustain(on);
 	}
@@ -113,7 +115,7 @@ MxSamplez {
 	setSustenuto {
 		arg id, folder, on;
 		if (ins.at(id).isNil,{
-			ins.put(id,MxSamplezInstrument(server,folder,maxSamples,busOut,busDelay.index,busReverb.index));
+			ins.put(id,MxSamplezInstrument(server,folder,maxSamples,busOut,busDelay.index,busReverb.index,sharedVoiceCount));
 		});
 		ins.at(id).sostenuto(on);
 	}
@@ -125,7 +127,7 @@ MxSamplez {
 		delaysend,reverbsend,
 		lpf,lpfrq,hpf,hpfrq;
 		if (ins.at(id).isNil,{
-			ins.put(id,MxSamplezInstrument(server,folder,maxSamples,busOut,busDelay.index,busReverb.index));
+			ins.put(id,MxSamplezInstrument(server,folder,maxSamples,busOut,busDelay.index,busReverb.index,sharedVoiceCount));
 		});
 		ins.at(id).noteOnFX(note,velocity,amp,pan,attack,decay,sustain,release,delaysend,reverbsend,lpf,lpfrq,hpf,hpfrq);
 	}

@@ -25,14 +25,15 @@ MxSamplezInstrument {
 	var pedalSustainNotes;
 	var pedalSostenutoNotes;
 	var voicesOn;
+	var sharedVoiceCount;
 
 	*new {
-		arg serverName,folderToSamples,numberMaxSamples,busOutArg,busDelayArg,busReverbArg;
-		^super.new.init(serverName,folderToSamples,numberMaxSamples,busOutArg,busDelayArg,busReverbArg);
+		arg serverName,folderToSamples,numberMaxSamples,busOutArg,busDelayArg,busReverbArg,sharedVoiceCountArg;
+		^super.new.init(serverName,folderToSamples,numberMaxSamples,busOutArg,busDelayArg,busReverbArg,sharedVoiceCountArg);
 	}
 
 	init {
-		arg serverName,folderToSamples,numberMaxSamples,busOutArg,busDelayArg,busReverbArg;
+		arg serverName,folderToSamples,numberMaxSamples,busOutArg,busDelayArg,busReverbArg,sharedVoiceCountArg;
 
 		server=serverName;
 		folder=folderToSamples;
@@ -41,6 +42,7 @@ MxSamplezInstrument {
 		busReverb=busReverbArg;
 		busOut=busOutArg;
 		busOutput=Bus.audio(server,2);
+		sharedVoiceCount=sharedVoiceCountArg ?? { [0] };
 
 		pedalSustainOn=false;
 		pedalSostenutoOn=false;
@@ -484,12 +486,10 @@ MxSamplezInstrument {
 		arg note,amp,file1,file2,buf1mix,rate;
 		var notename=1000000.rand;
 		var node;
-		var totalVoices=0;
 		[notename,note,amp,file1,file2,buf1mix,rate].postln;
 
-		// enforce polyphony cap — voice steal oldest available voice
-		syn.keysValuesDo({ arg n, dict; totalVoices = totalVoices + dict.size; });
-		while ({ totalVoices >= maxSamples }, {
+		// enforce global polyphony cap — voice steal from this instrument if at limit
+		while ({ sharedVoiceCount[0] >= maxSamples }, {
 			var stolen=false;
 			syn.keysValuesDo({ arg n, dict;
 				if (stolen.not && (dict.size > 0), {
@@ -497,10 +497,10 @@ MxSamplezInstrument {
 					dict.at(k).set(\gate, 0, \release, 0.05);
 					dict.removeAt(k);
 					stolen=true;
-					totalVoices=totalVoices-1;
+					sharedVoiceCount[0] = sharedVoiceCount[0] - 1;
 				});
 			});
-			if (stolen.not, { totalVoices=0 }); // safety exit if syn is empty
+			if (stolen.not, { sharedVoiceCount[0] = 0 }); // safety exit
 		});
 
 		// check if sound is loaded and unload it
@@ -524,9 +524,11 @@ MxSamplezInstrument {
 			\rate,rate,
 		]).onFree({
 			syn.at(note).removeAt(notename);
+			sharedVoiceCount[0] = sharedVoiceCount[0] - 1;
 		});
 		syn.at(note).put(notename,node);
 		voicesOn.put(note,1);
+		sharedVoiceCount[0] = sharedVoiceCount[0] + 1;
 	}
 
 
